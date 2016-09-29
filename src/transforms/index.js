@@ -23,6 +23,7 @@ import {
   setNodeOperation,
   setSelectionOperation,
   splitNodeOperation,
+  joinNodeOperation
 } from './operations'
 
 /**
@@ -175,6 +176,7 @@ export default {
   setNodeOperation,
   setSelectionOperation,
   splitNodeOperation,
+  joinNodeOperation,
 
   /**
    * At range.

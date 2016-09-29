@@ -128,16 +128,24 @@ export function removeNodeByKey(transform, key) {
   const parent = document.getParent(key)
   const index = parent.nodes.indexOf(node)
   const path = document.getPath(key)
+  const before = document.getPreviousSibling(node)
+  const after = document.getNextSibling(node)
   transform.removeNodeOperation(path)
 
-  // If the node isn't a text node, or it isn't the last node in its parent,
-  // then we have nothing else to do.
-  if (node.kind != 'text' || parent.nodes.size > 1) return transform
-
-  // Otherwise, re-add an empty text node into the parent so that we guarantee
+  // if parent only contains the removed node,
+  // re-add an empty text node into the parent so that we guarantee
   // to always have text nodes as the leaves of the node tree.
-  const text = Text.create()
-  transform.insertNodeByKey(parent.key, index, text)
+  if (parent.nodes.size <= 1) {
+    const text = Text.create()
+    transform.insertNodeByKey(parent.key, index, text)
+    return transform
+  }
+
+  // if removing this node leaves two adjacent text nodes, join them
+  if (before && before.kind == 'text' && after && after.kind == 'text') {
+    transform.joinNodeOperation(path, document.getPath(before))
+  }
+
   return transform
 }
 
@@ -154,7 +162,15 @@ export function removeNodeByKey(transform, key) {
 export function removeTextByKey(transform, key, offset, length) {
   const { state } = transform
   const { document } = state
+  const node = document.assertDescendant(key)
+  const parent = document.getParent(key)
   const path = document.getPath(key)
+
+  // non-void inline parents are removed when all text is removed from them
+  if (parent.kind == 'inline' && !parent.isVoid && offset == 0 && parent.length == length) {
+    return transform.removeNodeByKey(parent.key)
+  }
+
   return transform.removeTextOperation(path, offset, length)
 }
 
