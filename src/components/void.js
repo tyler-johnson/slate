@@ -3,8 +3,6 @@ import Leaf from './leaf'
 import Mark from '../models/mark'
 import OffsetKey from '../utils/offset-key'
 import React from 'react'
-import ReactDOM from 'react-dom'
-import keycode from 'keycode'
 import { IS_FIREFOX } from '../constants/environment'
 
 /**
@@ -130,7 +128,7 @@ class Void extends React.Component {
 
   renderLeaf = () => {
     const { node, schema, state } = this.props
-    const child = node.getTexts().first()
+    const child = node.getFirstText()
     const ranges = child.getRanges()
     const text = ''
     const marks = Mark.createSet()

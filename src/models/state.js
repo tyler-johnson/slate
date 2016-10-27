@@ -1,10 +1,8 @@
 
 
 import Document from './document'
-import Mark from './mark'
 import Selection from './selection'
 import Transform from './transform'
-import uid from '../utils/uid'
 import { Record, Set, Stack, List } from 'immutable'
 
 /**
@@ -47,14 +45,13 @@ class State extends new Record(DEFAULTS) {
     let selection = Selection.create(properties.selection)
 
     if (selection.isUnset) {
-      const text = document.getTexts().first()
+      const text = document.getFirstText()
       selection = selection.collapseToStartOf(text)
     }
 
     const state = new State({ document, selection })
-
-    // transform.apply will normalize the document
     return state.transform()
+      .normalize()
       .apply({ save: false })
   }
 

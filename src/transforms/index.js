@@ -94,7 +94,9 @@ import {
   setMarkByKey,
   setNodeByKey,
   splitNodeByKey,
-  unwrapInlineByKey
+  unwrapInlineByKey,
+  unwrapBlockByKey,
+  wrapBlockByKey,
 } from './by-key'
 
 /**
@@ -148,9 +150,11 @@ import {
   normalize,
   normalizeWith,
   normalizeNodeWith,
+  normalizeParentsWith,
   normalizeDocument,
   normalizeSelection,
-  normalizeNodeByKey
+  normalizeNodeByKey,
+  normalizeParentsByKey,
 } from './normalize'
 
 /**
@@ -248,6 +252,8 @@ export default {
   setNodeByKey,
   splitNodeByKey,
   unwrapInlineByKey,
+  unwrapBlockByKey,
+  wrapBlockByKey,
 
   /**
    * On selection.
@@ -295,8 +301,9 @@ export default {
   normalize,
   normalizeWith,
   normalizeNodeWith,
+  normalizeParentsWith,
   normalizeDocument,
   normalizeSelection,
-  normalizeNodeByKey
-
+  normalizeNodeByKey,
+  normalizeParentsByKey,
 }

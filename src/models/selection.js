@@ -1,6 +1,7 @@
 
-import includes from 'lodash/includes'
 import memoize from '../utils/memoize'
+import getLeafText from '../utils/get-leaf-text'
+import warning from '../utils/warning'
 import { Record } from 'immutable'
 
 /**
@@ -148,7 +149,7 @@ class Selection extends new Record(DEFAULTS) {
 
   hasAnchorAtStartOf(node) {
     if (this.anchorOffset != 0) return false
-    const first = node.kind == 'text' ? node : node.getTexts().first()
+    const first = node.kind == 'text' ? node : node.getFirstText()
     return this.anchorKey == first.key
   }
 
@@ -160,7 +161,7 @@ class Selection extends new Record(DEFAULTS) {
    */
 
   hasAnchorAtEndOf(node) {
-    const last = node.kind == 'text' ? node : node.getTexts().last()
+    const last = node.kind == 'text' ? node : node.getLastText()
     return this.anchorKey == last.key && this.anchorOffset == last.length
   }
 
@@ -202,7 +203,7 @@ class Selection extends new Record(DEFAULTS) {
    */
 
   hasFocusAtEndOf(node) {
-    const last = node.kind == 'text' ? node : node.getTexts().last()
+    const last = node.kind == 'text' ? node : node.getLastText()
     return this.focusKey == last.key && this.focusOffset == last.length
   }
 
@@ -215,7 +216,7 @@ class Selection extends new Record(DEFAULTS) {
 
   hasFocusAtStartOf(node) {
     if (this.focusOffset != 0) return false
-    const first = node.kind == 'text' ? node : node.getTexts().first()
+    const first = node.kind == 'text' ? node : node.getFirstText()
     return this.focusKey == first.key
   }
 
@@ -260,7 +261,7 @@ class Selection extends new Record(DEFAULTS) {
     const { isExpanded, startKey, startOffset } = this
     if (isExpanded) return false
     if (startOffset != 0) return false
-    const first = node.kind == 'text' ? node : node.getTexts().first()
+    const first = node.kind == 'text' ? node : node.getFirstText()
     return startKey == first.key
   }
 
@@ -274,7 +275,7 @@ class Selection extends new Record(DEFAULTS) {
   isAtEndOf(node) {
     const { endKey, endOffset, isExpanded } = this
     if (isExpanded) return false
-    const last = node.kind == 'text' ? node : node.getTexts().last()
+    const last = node.kind == 'text' ? node : node.getLastText()
     return endKey == last.key && endOffset == last.length
   }
 
@@ -288,7 +289,6 @@ class Selection extends new Record(DEFAULTS) {
 
   normalize(node) {
     let selection = this
-    const { isCollapsed } = selection
     let { anchorKey, anchorOffset, focusKey, focusOffset, isBackward } = selection
 
     // If the selection isn't formed yet or is malformed, ensure that it is
@@ -314,6 +314,7 @@ class Selection extends new Record(DEFAULTS) {
 
     // If the anchor node isn't a text node, match it to one.
     if (anchorNode.kind != 'text') {
+      warning('Selection anchor is on a non text node, matching to leaf')
       let anchorText = anchorNode.getTextAtOffset(anchorOffset)
       let offset = anchorNode.getOffset(anchorText)
       anchorOffset = anchorOffset - offset
@@ -322,6 +323,7 @@ class Selection extends new Record(DEFAULTS) {
 
     // If the focus node isn't a text node, match it to one.
     if (focusNode.kind != 'text') {
+      warning('Selection focus is on a non text node, matching to leaf')
       let focusText = focusNode.getTextAtOffset(focusOffset)
       let offset = focusNode.getOffset(focusText)
       focusOffset = focusOffset - offset
@@ -435,10 +437,13 @@ class Selection extends new Record(DEFAULTS) {
   /**
    * Move to the start of a `node`.
    *
+   * @param {Node} node
    * @return {Selection} selection
    */
 
   collapseToStartOf(node) {
+    node = getLeafText(node)
+
     return this.merge({
       anchorKey: node.key,
       anchorOffset: 0,
@@ -455,6 +460,8 @@ class Selection extends new Record(DEFAULTS) {
    */
 
   collapseToEndOf(node) {
+    node = getLeafText(node)
+
     return this.merge({
       anchorKey: node.key,
       anchorOffset: node.length,
@@ -474,6 +481,9 @@ class Selection extends new Record(DEFAULTS) {
    */
 
   moveToRangeOf(start, end = start) {
+    start = getLeafText(start)
+    end = getLeafText(end)
+
     return this.merge({
       anchorKey: start.key,
       anchorOffset: 0,
@@ -560,6 +570,58 @@ class Selection extends new Record(DEFAULTS) {
   }
 
   /**
+   * Extend the start point forward `n` characters.
+   *
+   * @param {Number} n (optional)
+   * @return {Selection} selection
+   */
+
+  moveStartOffset(n = 1) {
+    return this.isBackward
+      ? this.merge({ focusOffset: this.focusOffset + n })
+      : this.merge({ anchorOffset: this.anchorOffset + n })
+  }
+
+  /**
+   * Extend the end point forward `n` characters.
+   *
+   * @param {Number} n (optional)
+   * @return {Selection} selection
+   */
+
+  moveEndOffset(n = 1) {
+      return this.isBackward
+        ? this.merge({ anchorOffset: this.anchorOffset + n })
+        : this.merge({ focusOffset: this.focusOffset + n })
+  }
+
+  /**
+   * Move the start key, while preserving the direction
+   *
+   * @param {String} key
+   * @return {Selection} selection
+   */
+
+  moveStartTo(key, offset = 0) {
+    return this.isBackward
+      ? this.merge({ focusKey: key, focusOffset: offset })
+      : this.merge({ anchorKey: key, anchorOffset: offset })
+  }
+
+  /**
+   * Move the end key, while preserving the direction
+   *
+   * @param {String} key
+   * @return {Selection} selection
+   */
+
+  moveEndTo(key, offset = 0) {
+    return this.isBackward
+      ? this.merge({ anchorKey: key, anchorOffset: offset })
+      : this.merge({ focusKey: key, focusOffset: offset })
+  }
+
+  /**
    * Extend the focus point to the start of a `node`.
    *
    * @param {Node} node
@@ -586,6 +648,23 @@ class Selection extends new Record(DEFAULTS) {
       focusKey: node.key,
       focusOffset: node.length,
       isBackward: null
+    })
+  }
+
+  /**
+   * Unset the selection
+   *
+   * @return {Selection} selection
+   */
+
+  unset() {
+    return this.merge({
+      anchorKey: null,
+      anchorOffset: 0,
+      focusKey: null,
+      focusOffset: 0,
+      isFocused: false,
+      isBackward: false
     })
   }
 

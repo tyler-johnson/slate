@@ -1,7 +1,8 @@
-import Schema from '../models/schema'
-import Raw from '../serializers/raw'
 import warning from '../utils/warning'
 import { default as defaultSchema } from '../plugins/schema'
+
+// Maximum recursive calls for normalization
+const MAX_CALLS = 50
 
 /**
  * Refresh a reference to a node that have been modified in a transform.
@@ -30,8 +31,6 @@ function _refreshNode(transform, node) {
  */
 
 function _normalizeChildrenWith(transform, schema, node) {
-  let { state } = transform
-
   if (!node.nodes) {
     return transform
   }
@@ -53,28 +52,39 @@ function _normalizeChildrenWith(transform, schema, node) {
  */
 
 function _normalizeNodeWith(transform, schema, node) {
-  let { state } = transform
-  const failure = schema.__validate(node)
+  let recursiveCount = 0
 
-  // Node is valid?
-  if (!failure) {
-    return transform
+  // Auxiliary function, called recursively, with a maximum calls safety net.
+  function _recur(_transform, _schema, _node) {
+    const failure = _schema.__validate(_node)
+
+    // Node is valid?
+    if (!failure) {
+      return _transform
+    }
+
+    const { value, rule } = failure
+
+    // Normalize and get the new state
+    _transform = rule.normalize(_transform, _node, value)
+
+    // Search for the updated node in the new state
+    const newNode = _refreshNode(_transform, _node)
+
+    // Node no longer exist, go back to normalize parents
+    if (!newNode) {
+      return _transform
+    }
+
+    recursiveCount++
+    if (recursiveCount > MAX_CALLS) {
+      throw new Error('Unexpected number of successive normalizations. Aborting.')
+    }
+
+    return _recur(_transform, _schema, _node)
   }
 
-  const { value, rule } = failure
-
-  // Normalize and get the new state
-  transform = rule.normalize(transform, node, value)
-
-  // Search for the updated node in the new state
-  const newNode = _refreshNode(transform, node)
-
-  // Node no longer exist, go back to normalize parents
-  if (!newNode) {
-    return transform
-  }
-
-  return _normalizeNodeWith(transform, schema, newNode)
+  return _recur(transform, schema, node)
 }
 
 /**
@@ -100,6 +110,36 @@ export function normalizeNodeWith(transform, schema, node) {
 }
 
 /**
+ * Normalize a node its parents using a schema.
+ *
+ * @param  {Transform} transform
+ * @param  {Schema} schema
+ * @param  {Node} node
+ * @return {Transform}
+ */
+
+export function normalizeParentsWith(transform, schema, node) {
+  transform = _normalizeNodeWith(transform, schema, node)
+
+  // Normalize went back up to the document
+  if (node.kind == 'document') {
+    return transform
+  }
+
+  // We search for the new parent
+  node = _refreshNode(transform, node)
+  if (!node) {
+    return transform
+  }
+
+  const { state } = transform
+  const { document } = state
+  const parent = document.getParent(node.key)
+
+  return normalizeParentsWith(transform, schema, parent)
+}
+
+/**
  * Normalize state using a schema.
  *
  * @param  {Transform} transform
@@ -110,6 +150,11 @@ export function normalizeNodeWith(transform, schema, node) {
 export function normalizeWith(transform, schema) {
   const { state } = transform
   const { document } = state
+
+  // Schema was not rule to edit the document
+  if (!schema.isNormalization) {
+    return transform
+  }
 
   return transform.normalizeNodeWith(schema, document)
 }
@@ -135,11 +180,11 @@ export function normalize(transform) {
  */
 
 export function normalizeDocument(transform) {
-    return transform.normalizeWith(defaultSchema)
+  return transform.normalizeWith(defaultSchema)
 }
 
 /**
- * Normalize a specific node using core schema
+ * Normalize a node and its children using core schema
  *
  * @param  {Transform} transform
  * @param  {Node or String} key
@@ -147,11 +192,27 @@ export function normalizeDocument(transform) {
  */
 
 export function normalizeNodeByKey(transform, key) {
-    const { state } = transform
-    const { document } = state
-    const node = document.assertDescendant(key)
+  const { state } = transform
+  const { document } = state
+  const node = document.key == key ? document : document.assertDescendant(key)
 
-    return transform.normalizeNodeWith(defaultSchema, node)
+  return transform.normalizeNodeWith(defaultSchema, node)
+}
+
+/**
+ * Normalize a node and its parent using core schema
+ *
+ * @param  {Transform} transform
+ * @param  {Node or String} key
+ * @return {Transform} transform
+ */
+
+export function normalizeParentsByKey(transform, key) {
+  const { state } = transform
+  const { document } = state
+  const node = document.key == key ? document : document.assertDescendant(key)
+
+  return transform.normalizeParentsWith(defaultSchema, node)
 }
 
 /**

@@ -1,4 +1,5 @@
 
+import Immutable from 'immutable'
 import Base64 from '../serializers/base-64'
 import Debug from 'debug'
 import React from 'react'
@@ -7,6 +8,7 @@ import TYPES from '../constants/types'
 import Leaf from './leaf'
 import Void from './void'
 import scrollTo from '../utils/scroll-to'
+import warning from '../utils/warning'
 
 /**
  * Debug.
@@ -98,7 +100,11 @@ class Node extends React.Component {
 
     // If the node has changed, update.
     if (props.node != this.props.node) {
-      return true
+      if (!Immutable.is(props.node, this.props.node)) {
+        return true
+      } else {
+        warning('Encountered different references for identical node values in "shouldComponentUpdate". Check that you are preserving references for the following node:\n', props.node)
+      }
     }
 
     // If the selection is focused and is inside the node, we need to update so
@@ -306,7 +312,7 @@ class Node extends React.Component {
     const ranges = node.getRanges(decorators)
     let offset = 0
 
-    const leaves = ranges.map((range, i, original) => {
+    const leaves = ranges.map((range, i) => {
       const leaf = this.renderLeaf(ranges, range, i, offset)
       offset += range.text.length
       return leaf

@@ -1,13 +1,7 @@
 
-import Block from '../models/block'
-import Document from '../models/document'
-import Inline from '../models/inline'
-import Mark from '../models/mark'
 import Raw from './raw'
 import React from 'react'
 import ReactDOMServer from 'react-dom/server'
-import State from '../models/state'
-import Text from '../models/text'
 import cheerio from 'cheerio'
 import typeOf from 'type-of'
 import { Record } from 'immutable'
@@ -231,12 +225,16 @@ class Html {
    * Serialize a `state` object into an HTML string.
    *
    * @param {State} state
-   * @return {String} html
+   * @param {Object} options
+   *   @property {Boolean} render
+   * @return {String|Array} html
    */
 
-  serialize = (state) => {
+  serialize = (state, options = {}) => {
     const { document } = state
     const elements = document.nodes.map(this.serializeNode)
+    if (options.render === false) return elements
+
     const html = ReactDOMServer.renderToStaticMarkup(<body>{elements}</body>)
     const inner = html.slice(6, -7)
     return inner
